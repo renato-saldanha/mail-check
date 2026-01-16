@@ -21,11 +21,11 @@ flowchart TD
 
 ## Etapas por Fase
 1) Planejamento
-   - Escolher alvo de deploy (Vercel/Render/Railway).
-   - Definir formato de variaveis de ambiente (chave Gemini, limites de tamanho).
+   - Escolher alvo de deploy (Vercel front e Railway backend). FEITO
+   - Definir formato de variaveis de ambiente (chave Gemini, limites de tamanho). FEITO
 2) Backend (FastAPI)
-   - Criar endpoints `/api/health` e `/api/analyze`.
-   - Implementar leitura de texto (.txt direto; .pdf com extracao).
+   - Criar endpoints `/api/health` e `/api/analyze`. FEITO
+   - Implementar leitura de texto (.txt direto; .pdf com extracao). FEITO
    - Pre-processar (lowercase, stopwords, normalizacao basica; opcional lematizacao).
    - Montar prompt de classificacao (Produtivo/Improdutivo) com exemplos.
    - Montar prompt de resposta condicionado a categoria; fallback seguro se ambigua.

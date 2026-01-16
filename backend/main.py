@@ -1,16 +1,22 @@
-import datetime
-from time import timezone
 from fastapi import FastAPI
+from datetime import datetime, timezone
+from dotenv import load_dotenv
 
+from models.health import HealthResponse
+from routes.v1 import router as analyze_router 
+
+load_dotenv()
 
 app = FastAPI(
-    title="MAIl Check API",
-    description="Backend MAIl Check para classificação de emails",
+    title="M-AI-l Check API",
+    description="Backend M-AI-l Check para classificação de emails",
     version="1.0.0"
 )
 
+app.include_router(analyze_router)
 
-@app.get("/health")
+# Endpoint de verificação de saúde
+@app.get("/api/health", response_model=HealthResponse)
 def health_check():
     """
     Endpoint para monitoramento de saúde da API
