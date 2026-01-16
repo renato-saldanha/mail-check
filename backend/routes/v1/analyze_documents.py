@@ -14,13 +14,13 @@ router = APIRouter(prefix="/api", tags=["analyze"])
 def extract_text_from_txt(file_content: bytes) -> str:
     """
     Extrai texto de um arquivo TXT
-    
+
     Args:
         file_content: Conteúdo do arquivo em bytes
-        
+
     Returns:
         str: Texto extraído do arquivo
-        
+
     Raises:
         HTTPException: Se houver erro ao ler o arquivo
     """
@@ -44,13 +44,13 @@ def extract_text_from_txt(file_content: bytes) -> str:
 def extract_text_from_pdf(file_content: bytes) -> str:
     """
     Extrai texto de um arquivo PDF
-    
+
     Args:
         file_content: Conteúdo do arquivo em bytes
-        
+
     Returns:
         str: Texto extraído do PDF
-        
+
     Raises:
         HTTPException: Se houver erro ao processar o PDF ou se a biblioteca não estiver instalada
     """
@@ -59,19 +59,19 @@ def extract_text_from_pdf(file_content: bytes) -> str:
         pdf_file = io.BytesIO(file_content)
         pdf_reader = PyPDF2.PdfReader(pdf_file)
         text = ""
-        
+
         # Extrai texto de todas as páginas
         for page_num in range(len(pdf_reader.pages)):
             page = pdf_reader.pages[page_num]
             text += page.extract_text() + "\n"
-        
+
         # Valida se conseguiu extrair texto
         if not text.strip():
             raise HTTPException(
                 status_code=400,
                 detail="Não foi possível extrair texto do PDF. O arquivo pode estar protegido ou ser uma imagem."
             )
-        
+
         return text.strip()
     except ImportError:
         raise HTTPException(
@@ -83,46 +83,6 @@ def extract_text_from_pdf(file_content: bytes) -> str:
             status_code=400,
             detail=f"Erro ao processar PDF: {str(e)}"
         )
-
-# Metodo que valida o arquivo e retorna o conteúdo e extensão
-async def file_validate(file: UploadFile = File(...)):
-    """
-    Valida o nome do arquivo, formato e tamanho do arquivo.
-
-    Args: file-> UploadFile
-    
-    Return: OK-> file_extension e file_content
-            ERRO: HTTP status 400
-    """
-
-    # Validação da existência do arquivo
-    if not file.filename:
-        raise HTTPException(
-            status_code=400,
-            detail="Nome do arquivo não fornecido."
-        )
-
-    # Recupera a extensão do arquivo
-    file_extension = file.filename.lower().split(".")[-1]
-
-    # Verifica se a extensão do arquivo está nas suportadas
-    if file_extension not in ["txt", "pdf"]:
-        raise HTTPException(
-            status_code=400,
-            detail="Formato do arquivo não suportado."
-        )
-
-    # Valida o tamanho do arquivo (5mb)
-    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-    file_content = await file.read()
-
-    if len(file_content) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail="Tamanho do arquivo excede o tamanho máximo suportado (5mb)."
-        )
-
-    return file_extension, file_content
 
 
 # Método que usa llm para analisar o texto
@@ -211,7 +171,32 @@ async def analyze_documents(file: UploadFile = File(...)):
         400 - Arquivo com problema em alguma parte do processo
     """
 
-    file_extension, file_content = await file_validate(file)
+    # Validação da existência do arquivo
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Nome do arquivo não fornecido."
+        )
+
+    # Recupera a extensão do arquivo
+    file_extension = file.filename.lower().split(".")[-1]
+
+    # Verifica se a extensão do arquivo está nas suportadas
+    if file_extension not in ["txt", "pdf"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato do arquivo não suportado."
+        )
+
+    # Valida o tamanho do arquivo (5mb)
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    file_content = await file.read()
+
+    if len(file_content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="Tamanho do arquivo excede o tamanho máximo suportado (5mb)."
+        )
 
     # Extrai o arquivo conforme o formato
     match file_extension:
@@ -229,6 +214,7 @@ async def analyze_documents(file: UploadFile = File(...)):
     # Analisa com o modelo
     result = await analyze_text_gemini(text)
     result.extracted_text = text[500:] if len(text) > 500 else text
+
 
 # Endpoint de análise de texto direto
 @router.post("/analyze/text", response_model=AnalyzisResponse)
@@ -263,7 +249,7 @@ async def analyze(
 
     if file:
         return await analyze_documents(file)
-    elif text: 
+    elif text:
         return await analyze_text(text)
     else:
         raise HTTPException(
