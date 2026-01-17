@@ -91,8 +91,8 @@ async def analyze_text_gemini(text: str) -> AnalyzisResponse:
     Analisa o texto usando Gemini e retorna classificação e resposta
     """
 
-    prompt = """Analise o texto fornecido e:
-1. Aplique uma categorização de: Produtivo e Improdutivo.
+    prompt = f"""Analise o texto fornecido e:
+1. Aplique uma categorização de: Produtivo ou Improdutivo.
 - **Produtivo:** Emails que requerem uma ação ou resposta específica (ex.: solicitações de suporte técnico, atualização sobre casos em aberto, dúvidas sobre o sistema).
 - **Improdutivo:** Emails que não necessitam de uma ação imediata (ex.: mensagens de felicitações, agradecimentos).
 
@@ -105,7 +105,7 @@ Texto para analisar:
 {text}
 ---
 
-Retorne em formato JSON a resposta:
+Formato da resposta:
 {{
     "category": "Produtivo" ou "Improduvito",
     "confidence": 0.0 a 1.0,
@@ -116,9 +116,6 @@ Retorne em formato JSON a resposta:
     try:
         # Define a llm
         llm = get_llm()
-
-        # Define a mensagem com o prompt
-        # messages = HumanMessage(content=prompt)
 
         # invoca a llm e retorna a resposta
         response = await llm.ainvoke(prompt)
@@ -215,6 +212,8 @@ async def analyze_documents(file: UploadFile = File(...)):
     result = await analyze_text_gemini(text)
     result.extracted_text = text[500:] if len(text) > 500 else text
 
+    return result
+
 
 # Endpoint de análise de texto direto
 @router.post("/analyze/text", response_model=AnalyzisResponse)
@@ -237,7 +236,7 @@ async def analyze_text(text: str = Form(...)):
 
 
 # Endpoint original
-@router.push("/analyze", response_model=AnalyzisResponse)
+@router.post("/analyze", response_model=AnalyzisResponse)
 async def analyze(
     file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
@@ -254,5 +253,5 @@ async def analyze(
     else:
         raise HTTPException(
             status_code=400,
-            detail="Forneça um aruivo para análise. "
+            detail="Forneça um arquivo para análise. "
         )

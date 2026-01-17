@@ -26,7 +26,7 @@ flowchart TD
 2) Backend (FastAPI)
    - Criar endpoints `/api/health` e `/api/analyze`. FEITO
    - Implementar leitura de texto (.txt direto; .pdf com extracao). FEITO
-   - Pre-processar (lowercase, stopwords, normalizacao basica; opcional lematizacao).
+   - Pre-processar (lowercase, stopwords, normalizacao basica; opcional lematizacao). FEITO
    - Montar prompt de classificacao (Produtivo/Improdutivo) com exemplos.
    - Montar prompt de resposta condicionado a categoria; fallback seguro se ambigua.
    - Adicionar limites de tamanho e sanitizacao basica (remover PII simples quando possivel).

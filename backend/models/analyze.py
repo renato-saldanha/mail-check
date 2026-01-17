@@ -27,6 +27,10 @@ class AnalyzisResponse(BaseModel):
         default=False,
         description="Marca casos ambiguos para revisao manual",
     )
+    extracted_text: Optional[str] = Field(
+        default=None,
+        description="Texto extraído do documento (últimos 500 caracteres se maior)",
+    )
 
 
 class AnalyzisErrorResponse(BaseModel):
