@@ -1,6 +1,6 @@
 # M-AI-l Check — Classificador de Emails com Gemini
 
-Projeto para classificar emails como **Produtivo** ou **Improdutivo** e sugerir respostas automáticas usando o Gemini. O backend é feito em FastAPI e a UI será um frontend simples em HTML/CSS/JS.
+Projeto para classificar emails como **Produtivo** ou **Improdutivo** e sugerir respostas automáticas usando o Gemini. O backend é feito em FastAPI e o frontend é construído com Next.js 16 e React 19.
 
 ## Visão geral
 - Classificação binária via prompt no Gemini.
@@ -10,20 +10,22 @@ Projeto para classificar emails como **Produtivo** ou **Improdutivo** e sugerir 
 
 ## Arquitetura (alto nível)
 ```
-Frontend (HTML/JS) -> FastAPI (/api) -> Pré-processamento -> Gemini
-                                           |-> Classificação
-                                           |-> Resposta sugerida
+Frontend (Next.js) -> API Route (proxy) -> FastAPI (/api) -> Gemini
+                                              |-> Classificação
+                                              |-> Resposta sugerida
 ```
 
 ## Estrutura de pastas
 - `backend/`: API FastAPI, modelos e integração Gemini.
-- `frontend/`: UI (a construir).
+- `frontend/`: UI Next.js (React 19 + Tailwind CSS 4).
 - `PLAN.md`: roteiro de desenvolvimento.
 - `REQUISITOS.MD`: descrição do desafio.
 
 ## Requisitos
 - Python **3.12**
 - Pip
+- Node.js **18+**
+- npm
 
 ## Configuração rápida (backend)
 1. Instale dependências:
@@ -48,6 +50,16 @@ Endpoint de saúde:
 ```
 GET http://127.0.0.1:8000/api/health
 ```
+
+### Frontend
+Em outro terminal, rode o frontend:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Acesse em: http://localhost:3000
 
 ## Endpoints
 
@@ -110,6 +122,5 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 - O tamanho de arquivos é limitado para reduzir custos e timeouts.
 
 ## Próximos passos
-- Conectar a UI em `frontend/` aos endpoints da API.
 - Refinar prompts e validação do JSON do Gemini.
 - Preparar deploy (Railway/Render/Vercel).
