@@ -118,9 +118,33 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 - `MAX_TOKENS` (opcional)
 
 ## Notas de segurança
-- Evite enviar PII desnecessária ao modelo.
+- PII (emails, telefones, CPF, CNPJ) é automaticamente sanitizado antes de enviar ao Gemini.
 - O tamanho de arquivos é limitado para reduzir custos e timeouts.
+
+## Deploy na Nuvem
+
+### Backend (Railway)
+1. Crie uma conta no [Railway](https://railway.app)
+2. Conecte seu repositório GitHub
+3. Selecione a pasta `backend/` como root
+4. Configure as variáveis de ambiente:
+   - `GOOGLE_API_KEY`: sua chave da API do Gemini
+5. O Railway detectará automaticamente o `Procfile` ou `railway.toml`
+
+### Frontend (Vercel)
+1. Crie uma conta na [Vercel](https://vercel.com)
+2. Importe seu repositório GitHub
+3. Selecione a pasta `frontend/` como root
+4. Configure as variáveis de ambiente:
+   - `BACKEND_URL`: URL do backend no Railway (ex: `https://seu-app.railway.app`)
+5. Clique em Deploy
+
+### Variáveis de ambiente por plataforma
+
+| Plataforma | Variável | Descrição |
+|------------|----------|-----------|
+| Railway | `GOOGLE_API_KEY` | Chave da API do Gemini |
+| Vercel | `BACKEND_URL` | URL do backend (Railway) |
 
 ## Próximos passos
 - Refinar prompts e validação do JSON do Gemini.
-- Preparar deploy (Railway/Render/Vercel).

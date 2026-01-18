@@ -1,11 +1,16 @@
 from typing import Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-
-from models.analyze import AnalyzisResponse
-from utils.utils import get_llm
+import logging
 import json
 import re
 import io
+import os
+from datetime import datetime, timezone
+
+from models.analyze import AnalyzisResponse, FeedbackResponse
+from utils.utils import get_llm, sanitize_pii
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["analyze"])
 
@@ -149,6 +154,7 @@ Formato da resposta:
         )
 
     except Exception as e:
+        logger.error(f"Erro ao analisar texto com Gemini: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao analisar o texto com Gemini:\n {e}"
@@ -167,6 +173,7 @@ async def analyze_documents(file: UploadFile = File(...)):
         200 - Variável tipo AnalysisResponse
         400 - Arquivo com problema em alguma parte do processo
     """
+    logger.info(f"Recebida requisição de análise de arquivo: {file.filename if file.filename else 'sem nome'}")
 
     # Validação da existência do arquivo
     if not file.filename:
@@ -208,10 +215,14 @@ async def analyze_documents(file: UploadFile = File(...)):
             detail=f"O arquivo esta vázio ou contém texto ilegível.\n {text}"
         )
 
+    # Sanitiza PII antes de enviar ao modelo
+    sanitized_text = sanitize_pii(text)
+
     # Analisa com o modelo
-    result = await analyze_text_gemini(text)
+    result = await analyze_text_gemini(sanitized_text)
     result.extracted_text = text[500:] if len(text) > 500 else text
 
+    logger.info(f"Análise concluída - Categoria: {result.category}, Confiança: {result.confidence}")
     return result
 
 
@@ -221,6 +232,7 @@ async def analyze_text(text: str = Form(...)):
     """
     Analisa texto enviados diretamente 
     """
+    logger.info(f"Recebida requisição de análise de texto ({len(text)} caracteres)")
 
     if not text or not text.strip():
         raise HTTPException(
@@ -228,10 +240,14 @@ async def analyze_text(text: str = Form(...)):
             detail="Texto não foi fornecido",
         )
 
+    # Sanitiza PII antes de enviar ao modelo
+    sanitized_text = sanitize_pii(text)
+
     # Efetua analise com llm
-    response = await analyze_text_gemini(text)
+    response = await analyze_text_gemini(sanitized_text)
     response.extracted_text = text[500:] if len(text) > 500 else text
 
+    logger.info(f"Análise concluída - Categoria: {response.category}, Confiança: {response.confidence}")
     return response
 
 
@@ -254,4 +270,54 @@ async def analyze(
         raise HTTPException(
             status_code=400,
             detail="Forneça um arquivo para análise. "
+        )
+
+
+# Caminho do arquivo de feedback
+FEEDBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "feedback.json")
+
+
+# Endpoint para receber feedback de correção
+@router.post("/feedback", response_model=FeedbackResponse)
+async def submit_feedback(
+    original_category: str = Form(...),
+    corrected_category: str = Form(...),
+    text_preview: str = Form(...)
+):
+    """
+    Recebe feedback do usuário para corrigir a classificação.
+    Salva em arquivo JSON para análise posterior.
+    """
+    logger.info(f"Feedback recebido: {original_category} -> {corrected_category}")
+
+    try:
+        # Carrega feedbacks existentes
+        feedbacks = []
+        if os.path.exists(FEEDBACK_FILE):
+            with open(FEEDBACK_FILE, 'r', encoding='utf-8') as f:
+                feedbacks = json.load(f)
+
+        # Adiciona novo feedback
+        feedback_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "original_category": original_category,
+            "corrected_category": corrected_category,
+            "text_preview": text_preview[:100]  # Limita a 100 caracteres
+        }
+        feedbacks.append(feedback_entry)
+
+        # Salva no arquivo
+        with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:
+            json.dump(feedbacks, f, ensure_ascii=False, indent=2)
+
+        return FeedbackResponse(
+            success=True,
+            message="Feedback registrado com sucesso"
+        )
+
+    except Exception as e:
+        logger.error(f"Erro ao salvar feedback: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao salvar feedback: {str(e)}"
         )

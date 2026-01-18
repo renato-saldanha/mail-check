@@ -1,11 +1,19 @@
 from fastapi import FastAPI
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+import logging
 
 from models.health import HealthResponse
 from routes.v1 import router as analyze_router 
 
 load_dotenv()
+
+# Configuração de logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="M-AI-l Check API",

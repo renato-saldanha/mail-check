@@ -10,6 +10,10 @@ interface ResultCardProps {
 
 export function ResultCard({ result, onReset }: ResultCardProps) {
   const [copied, setCopied] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
 
   const isProdutivo = result.category === "Produtivo";
   const confidencePercent = result.confidence
@@ -25,6 +29,31 @@ export function ResultCard({ result, onReset }: ResultCardProps) {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       console.error("Falha ao copiar");
+    }
+  };
+
+  const handleFeedbackSubmit = async () => {
+    if (!selectedCategory || selectedCategory === result.category) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("original_category", result.category);
+      formData.append("corrected_category", selectedCategory);
+      formData.append("text_preview", result.extracted_text || "");
+
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        setFeedbackSent(true);
+        setFeedbackError("");
+      } else {
+        setFeedbackError("Erro ao enviar feedback.");
+      }
+    } catch {
+      setFeedbackError("Erro de conexão.");
     }
   };
 
@@ -152,6 +181,53 @@ export function ResultCard({ result, onReset }: ResultCardProps) {
                 A classificação pode ser ambígua. Verifique antes de usar.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Seção de Feedback */}
+        {!feedbackSent ? (
+          <div className="border-t border-gray-100 pt-4">
+            {!showFeedback ? (
+              <button
+                onClick={() => setShowFeedback(true)}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Classificação incorreta? Corrigir
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                  Qual seria a classificação correta?
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="Produtivo">Produtivo</option>
+                    <option value="Improdutivo">Improdutivo</option>
+                  </select>
+                  <button
+                    onClick={handleFeedbackSubmit}
+                    disabled={!selectedCategory || selectedCategory === result.category}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Enviar
+                  </button>
+                </div>
+                {feedbackError && (
+                  <p className="text-sm text-red-600">{feedbackError}</p>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-sm text-green-600">
+              Obrigado pelo feedback! Isso nos ajuda a melhorar.
+            </p>
           </div>
         )}
       </div>

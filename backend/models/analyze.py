@@ -35,3 +35,14 @@ class AnalyzisResponse(BaseModel):
 
 class AnalyzisErrorResponse(BaseModel):
     detail: str
+
+
+class FeedbackResponse(BaseModel):
+    success: bool = Field(
+        default=True,
+        description="Indica se o feedback foi salvo com sucesso"
+    )
+    message: str = Field(
+        default="Feedback registrado com sucesso",
+        description="Mensagem de retorno"
+    )

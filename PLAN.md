@@ -3,16 +3,17 @@
 ## Visão Geral
 - App web simples para classificar emails em Produtivo/Improdutivo e sugerir respostas automáticas.
 - Backend Python (FastAPI) integrando Gemini para classificação e resposta.
-- Frontend HTML/CSS/JS para upload de .txt/.pdf ou texto colado.
-- Deploy serverless sugerido: Vercel, Render ou Railway.
+- Frontend Next.js 16 (React 19 + Tailwind CSS 4) para upload de .txt/.pdf ou texto colado.
+- Deploy serverless: Vercel (frontend) + Railway (backend).
 
 ## Arquitetura (alto nível)
 ```mermaid
 flowchart TD
-  user[Usuario] --> ui[Frontend HTML]
-  ui --> api[FastAPI /api]
-  api --> nlp[Pre-processamento]
-  nlp --> gemini[Gemini API]
+  user[Usuario] --> ui[Frontend Next.js]
+  ui --> proxy[API Route Proxy]
+  proxy --> api[FastAPI /api]
+  api --> sanitize[Sanitiza PII]
+  sanitize --> gemini[Gemini API]
   gemini --> clf[Classificacao Prod/Improd]
   gemini --> resp[Resposta sugerida]
   clf --> ui
@@ -27,35 +28,32 @@ flowchart TD
    - Criar endpoints `/api/health` e `/api/analyze`. FEITO
    - Implementar leitura de texto (.txt direto; .pdf com extracao). FEITO
    - Pre-processar (lowercase, stopwords, normalizacao basica; opcional lematizacao). FEITO
-   - Montar prompt de classificacao (Produtivo/Improdutivo) com exemplos.
-   - Montar prompt de resposta condicionado a categoria; fallback seguro se ambigua.
-   - Adicionar limites de tamanho e sanitizacao basica (remover PII simples quando possivel).
+   - Montar prompt de classificacao (Produtivo/Improdutivo) com exemplos. FEITO
+   - Montar prompt de resposta condicionado a categoria; fallback seguro se ambigua. FEITO
+   - Adicionar limites de tamanho e sanitizacao basica (remover PII simples quando possivel). FEITO
 3) Frontend
-   - Form upload (.txt/.pdf) e textarea de texto colado.
-   - Botao de enviar para processamento; estado de carregamento.
-   - Exibir categoria, confianca (se fornecida), resposta sugerida; botao de copiar.
-   - Mensagens de erro claras (tipo de arquivo, tamanho, falha de API).
+   - Form upload (.txt/.pdf) e textarea de texto colado. FEITO
+   - Botao de enviar para processamento; estado de carregamento. FEITO
+   - Exibir categoria, confianca (se fornecida), resposta sugerida; botao de copiar. FEITO
+   - Mensagens de erro claras (tipo de arquivo, tamanho, falha de API). FEITO
 4) Observabilidade e Qualidade
-   - Logs basicos sem PII; marcar casos ambigos como “revisar”.
-   - Botao opcional “corrigir classificacao” para feedback manual (persistencia simples ou mock).
+   - Logs basicos sem PII; marcar casos ambigos como "revisar". FEITO
+   - Botao opcional "corrigir classificacao" para feedback manual (persistencia simples ou mock). FEITO
 5) Deploy
-   - Ajustar configuracao do alvo escolhido (env vars, timeout, build).
-   - Gerar instrucoes no README para execucao local e deploy.
-   - Opcional: Dockerfile para portabilidade.
+   - Ajustar configuracao do alvo escolhido (env vars, timeout, build). FEITO
+   - Gerar instrucoes no README para execucao local e deploy. FEITO
+   - Opcional: Dockerfile para portabilidade. (pendente)
 
 ## Entregaveis Esperados
 - Este `PLAN.md` na raiz.
 - `backend/` com FastAPI + integracao Gemini.
-- `frontend/` (ou `public/`) com HTML/CSS/JS da interface.
-- `requirements.txt` ou `pyproject.toml`; `README.md` com setup e deploy.
+- `frontend/` com Next.js (React 19 + Tailwind CSS 4).
+- `requirements.txt`; `README.md` com setup e deploy.
 - Opcional: Dockerfile.
 
 ## Tarefas (checklist)
-- [ ] Confirmar alvo de deploy.
-- [ ] Implementar FastAPI com integracao Gemini.
-- [ ] Criar UI de upload/texto e integracao com API.
+- [x] Confirmar alvo de deploy.
+- [x] Implementar FastAPI com integracao Gemini.
+- [x] Criar UI de upload/texto e integracao com API.
 - [ ] Testar prompts e ajustar classificacao/resposta.
-- [ ] Documentar e preparar deploy na nuvem.
-
-
-
+- [x] Documentar e preparar deploy na nuvem.

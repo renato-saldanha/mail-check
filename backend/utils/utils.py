@@ -66,6 +66,28 @@ def get_llm():
     return llm
 
 
+# Sanitiza PII (dados pessoais) antes de enviar ao modelo
+def sanitize_pii(text: str) -> str:
+    """
+    Remove dados pessoais identificáveis do texto antes de enviar ao Gemini.
+
+    Args:
+        text: Texto original
+
+    Returns:
+        str: Texto com PII removido
+    """
+    # Remove emails
+    text = re.sub(r'\b[\w.-]+@[\w.-]+\.\w+\b', '[EMAIL]', text)
+    # Remove telefones (formatos BR: 11999999999, 11 99999-9999, (11) 99999-9999)
+    text = re.sub(r'\(?\d{2}\)?[-.\s]?\d{4,5}[-.\s]?\d{4}\b', '[TELEFONE]', text)
+    # Remove CPF (123.456.789-00 ou 12345678900)
+    text = re.sub(r'\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b', '[CPF]', text)
+    # Remove CNPJ (12.345.678/0001-00 ou 12345678000100)
+    text = re.sub(r'\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b', '[CNPJ]', text)
+    return text
+
+
 # Aplica remoção de caracteres inúteis
 def refine_text(text: str) -> str:
     """
