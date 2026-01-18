@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timezone
 
 from models.analyze import AnalyzisResponse, FeedbackResponse
-from utils.utils import get_llm, sanitize_pii
+from utils.utils import get_llm, pre_process_text, sanitize_pii
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +90,54 @@ def extract_text_from_pdf(file_content: bytes) -> str:
         )
 
 
+def parse_llm_json(response_text: str) -> dict:
+    """
+    Tenta extrair um JSON válido do texto retornado pelo modelo.
+    """
+    raw_text = response_text.strip()
+
+    # Caso o modelo retorne JSON puro
+    if raw_text.startswith("{") and raw_text.endswith("}"):
+        candidate = raw_text
+    else:
+        # Tenta extrair de bloco Markdown ```json ... ```
+        block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+        if block_match:
+            candidate = block_match.group(1)
+        else:
+            # Tenta extrair o primeiro bloco com chaves
+            brace_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+            if not brace_match:
+                raise ValueError("JSON não encontrado na resposta do modelo.")
+            candidate = brace_match.group(0)
+
+    # Remove trailing commas antes de tentar carregar
+    candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+
+    return json.loads(candidate)
+
+
+def normalize_category(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+
+    normalized = value.strip().lower()
+    if "produtivo" == normalized:
+        return "Produtivo"
+    if "improdutivo" == normalized:
+        return "Improdutivo"
+
+    return None
+
+
 # Método que usa llm para analisar o texto
 async def analyze_text_gemini(text: str) -> AnalyzisResponse:
     """
     Analisa o texto usando Gemini e retorna classificação e resposta
     """
+
+    sanitized_text = sanitize_pii(text)
+    processed_text = pre_process_text(sanitized_text)
 
     prompt = f"""Analise o texto fornecido e:
 1. Aplique uma categorização de: Produtivo ou Improdutivo.
@@ -105,14 +148,22 @@ async def analyze_text_gemini(text: str) -> AnalyzisResponse:
 - **Produtivo:** uma resposta profissional e útil.
 - **Improdutivo:** uma resposta educada e breve ou uma sugestão de descartar.
 
-Texto para analisar:
+Use o texto pré-processado apenas para a classificação.
+Use o texto original para redigir a resposta.
+
+Texto original (sanitizado):
 ---
-{text}
+{sanitized_text}
 ---
 
-Formato da resposta:
+Texto pré-processado:
+---
+{processed_text}
+---
+
+Responda SOMENTE com JSON válido no seguinte formato:
 {{
-    "category": "Produtivo" ou "Improduvito",
+    "category": "Produtivo" ou "Improdutivo",
     "confidence": 0.0 a 1.0,
     "reply": "resposta sugerida",
     "needs_review": true ou false,
@@ -128,29 +179,30 @@ Formato da resposta:
         # Extrai o conteúdo
         response_text = response.content
 
-        # Procura um JSON no conteúdo
-        json_match = re.search(r'\{[^{}]*\}', response_text, re.DOTALL)
-        if json_match:
-            result = json.loads(json_match.group())
-        else:
+        try:
+            result = parse_llm_json(response_text)
+        except Exception:
             # Fallback: tentar extrair informações manualmente
             category = "Produtivo" if "produtivo" in response_text.lower() else "Improdutivo"
-            confidence = 0.7
-            reply = response_text
-            needs_review = True
-
             result = {
                 "category": category,
-                "confidence": confidence,
-                "reply": reply,
-                "needs_review": needs_review,
+                "confidence": 0.7,
+                "reply": response_text,
+                "needs_review": True,
             }
 
+        normalized_category = normalize_category(result.get("category"))
+        confidence = result.get("confidence")
+        if isinstance(confidence, (int, float)):
+            confidence = max(0.0, min(1.0, float(confidence)))
+        else:
+            confidence = None
+
         return AnalyzisResponse(
-            category=result.get("category"),
-            confidence=result.get("confidence"),
+            category=normalized_category or "Improdutivo",
+            confidence=confidence,
             reply=result.get("reply"),
-            needs_review=result.get("needs_review"),
+            needs_review=bool(result.get("needs_review")) or normalized_category is None,
         )
 
     except Exception as e:
@@ -215,11 +267,8 @@ async def analyze_documents(file: UploadFile = File(...)):
             detail=f"O arquivo esta vázio ou contém texto ilegível.\n {text}"
         )
 
-    # Sanitiza PII antes de enviar ao modelo
-    sanitized_text = sanitize_pii(text)
-
     # Analisa com o modelo
-    result = await analyze_text_gemini(sanitized_text)
+    result = await analyze_text_gemini(text)
     result.extracted_text = text[500:] if len(text) > 500 else text
 
     logger.info(f"Análise concluída - Categoria: {result.category}, Confiança: {result.confidence}")
@@ -240,11 +289,8 @@ async def analyze_text(text: str = Form(...)):
             detail="Texto não foi fornecido",
         )
 
-    # Sanitiza PII antes de enviar ao modelo
-    sanitized_text = sanitize_pii(text)
-
     # Efetua analise com llm
-    response = await analyze_text_gemini(sanitized_text)
+    response = await analyze_text_gemini(text)
     response.extracted_text = text[500:] if len(text) > 500 else text
 
     logger.info(f"Análise concluída - Categoria: {response.category}, Confiança: {response.confidence}")

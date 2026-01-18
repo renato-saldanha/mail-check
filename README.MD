@@ -146,5 +146,10 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 | Railway | `GOOGLE_API_KEY` | Chave da API do Gemini |
 | Vercel | `BACKEND_URL` | URL do backend (Railway) |
 
+## Links públicos
+- **Aplicação (Vercel):** https://mail-check-chi.vercel.app/
+- **Backend (Railway):** https://mail-check-production.up.railway.app
+- **Vídeo demonstrativo:** (adicione aqui o link do YouTube quando publicar)
+
 ## Próximos passos
 - Refinar prompts e validação do JSON do Gemini.
