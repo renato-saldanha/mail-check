@@ -149,7 +149,39 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 ## Links públicos
 - **Aplicação (Vercel):** https://mail-check-chi.vercel.app/
 - **Backend (Railway):** https://mail-check-production.up.railway.app
-- **Vídeo demonstrativo:** (adicione aqui o link do YouTube quando publicar)
+- **Vídeo demonstrativo:** https://www.youtube.com/watch?v=OWxhQPaOtCo
+
+## Ajuste de IA (estratégia simples)
+- **Few-shot no prompt:** incluir 2–3 exemplos curtos (Produtivo/Improdutivo) para reduzir ambiguidade.
+- **Avaliação com feedbacks:** usar o `feedback.json` para amostrar casos corrigidos, medir acurácia e ajustar o prompt.
+- **Critério de revisão:** marcar `needs_review` quando houver baixa confiança ou conflito semântico.
+
+## Documentação de ajuste/treinamento (processo aplicado)
+Esta solução utiliza **ajuste por prompt (few-shot) + ciclo de feedback** para melhorar a qualidade sem treinar um modelo próprio.
+
+### 1) Few-shot (ajuste de prompt)
+Inclua exemplos rotulados no prompt para reduzir ambiguidades entre Produtivo e Improdutivo. Exemplo de bloco:
+```
+Exemplos:
+Email: "Bom dia, preciso atualizar meu chamado #123."
+Categoria: Produtivo
+Resposta: "Olá! Vamos atualizar seu chamado e retornaremos em breve."
+
+Email: "Feliz Natal para toda a equipe!"
+Categoria: Improdutivo
+Resposta: "Obrigado pela mensagem! Desejamos um excelente fim de ano."
+```
+
+### 2) Avaliação com feedbacks
+O endpoint de feedback salva correções em `backend/feedback.json`. Periodicamente:
+1. Exporte os registros corrigidos.
+2. Calcule acurácia simples: `corretos / total`.
+3. Revise os erros mais comuns e ajuste o prompt (ex.: regras de prioridade).
+
+### 3) Critério de revisão manual
+Marque `needs_review=true` quando:
+- Confiança < 0.6; ou
+- O texto contiver sinais conflitantes (elogio + solicitação).
 
 ## Próximos passos
 - Refinar prompts e validação do JSON do Gemini.
