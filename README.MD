@@ -78,7 +78,7 @@ Retorna status da API.
 ### `POST /api/analyze/file`
 Analisa arquivo `.txt` ou `.pdf`.
 
-- Tamanho máximo: **5 MB**
+- Tamanho máximo: **4 MB** (limite de corpo de requisição das funções da Vercel é ~4,5 MB)
 - Formatos suportados: **txt**, **pdf**
 
 **Exemplo (PowerShell):**
@@ -115,7 +115,34 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 
 ## Variáveis de ambiente
 - `GOOGLE_API_KEY` (obrigatória)
-- `MAX_TOKENS` (opcional)
+- `MAX_TOKENS` (opcional, padrão 1024)
+- `MAX_TEXT_CHARS` (opcional, padrão 50000), `MAX_PDF_PAGES` (opcional, padrão 20)
+- `RATE_LIMIT_PER_IP` (padrão 10), `RATE_LIMIT_GLOBAL` (padrão 100) e `RATE_LIMIT_WINDOW_SECONDS` (padrão 3600)
+
+## Demo na Vercel
+
+Backend e frontend são dois projetos Vercel separados (plano gratuito):
+
+| Projeto | Pasta | Variável | Descrição |
+|---------|-------|----------|-----------|
+| `mail-check-api` | `backend/` | `GOOGLE_API_KEY` | Chave da API do Gemini (cadastre em Production e Preview) |
+| `mail-check` | `frontend/` | `BACKEND_URL` | URL de produção do backend, sem barra final (ex: `https://mail-check-api-one.vercel.app`) |
+
+Backend (FastAPI como função Python, Python 3.12 definido em `backend/.python-version`; o entrypoint é `backend/main.py`):
+```bash
+vercel link --yes --project mail-check-api --cwd backend
+vercel env add GOOGLE_API_KEY production --cwd backend
+vercel deploy --prod --yes --cwd backend
+```
+O projeto `mail-check` tem `frontend` como Root Directory, então o deploy dele é feito a partir da raiz do repositório (`vercel deploy --prod --yes`).
+
+Proteções da demo pública:
+- Limite de uso por IP e global (padrão: 10 análises por IP e 100 no total por hora). O contador fica em memória; em serverless cada instância tem o seu e ele zera quando a instância é reciclada, então o limite é aproximado. O frontend repassa o IP do visitante no cabeçalho `x-client-ip`.
+- Arquivo de até 4 MB, texto de até 50.000 caracteres, PDF de até 20 páginas e `MAX_TOKENS` limitando a saída.
+- Sem `GOOGLE_API_KEY` o `GET /api/health` funciona e as análises retornam 503 com mensagem clara; cota do Gemini esgotada retorna 429.
+- Sem disco persistente: o feedback é registrado nos logs da função (`/tmp` não persiste entre invocações).
+
+Limites do plano gratuito do Gemini: a chave gratuita tem limites de requisições por minuto e por dia e de tokens por minuto, que mudam com o tempo e com o modelo (consulte https://ai.google.dev/gemini-api/docs/rate-limits). Ao estourar, a demo exibe "A cota gratuita do Gemini foi atingida" e volta a funcionar quando a cota renova. No plano gratuito o Gemini pode usar os dados enviados para melhorar produtos do Google, por isso use apenas dados fictícios.
 
 ## Notas de segurança
 - PII (emails, telefones, CPF, CNPJ) é automaticamente sanitizado antes de enviar ao Gemini.
@@ -148,7 +175,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/analyze/text" `
 
 ## Links públicos
 - **Aplicação (Vercel):** https://mail-check-chi.vercel.app/
-- **Backend (Railway):** https://mail-check-production.up.railway.app
+- **Backend (Vercel):** https://mail-check-api-one.vercel.app
 - **Vídeo demonstrativo:** https://www.youtube.com/watch?v=OWxhQPaOtCo
 
 ## Ajuste de IA (estratégia simples)
