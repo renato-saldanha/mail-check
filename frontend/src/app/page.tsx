@@ -85,7 +85,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className="text-center mt-8 text-xs text-gray-400">
-          <p>Formatos aceitos: .txt e .pdf (máx. 5MB) ou texto direto.</p>
+          <p>Formatos aceitos: .txt e .pdf (máx. 4MB) ou texto direto.</p>
           <p className="mt-1">Powered by Gemini AI</p>
         </div>
       </main>

@@ -47,8 +47,8 @@ export function EmailForm({
       setError("Formato inválido. Use .txt ou .pdf");
       return false;
     }
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      setError("Arquivo muito grande. Máximo 5MB.");
+    if (selectedFile.size > 4 * 1024 * 1024) {
+      setError("Arquivo muito grande. Máximo 4MB.");
       return false;
     }
     setError("");
@@ -170,7 +170,7 @@ export function EmailForm({
                       Clique para selecionar um arquivo
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
-                      .txt ou .pdf (máx. 5MB)
+                      .txt ou .pdf (máx. 4MB)
                     </p>
                   </div>
                 )}
