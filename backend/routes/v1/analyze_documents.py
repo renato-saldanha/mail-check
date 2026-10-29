@@ -1,18 +1,25 @@
 from typing import Optional
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 import logging
 import json
 import re
 import io
 import os
+import tempfile
 from datetime import datetime, timezone
 
 from models.analyze import AnalyzisResponse, FeedbackResponse
-from utils.utils import get_llm, pre_process_text, sanitize_pii
+from utils.rate_limit import rate_limit
+from utils.utils import get_int_env, get_llm, map_llm_error, pre_process_text, sanitize_pii
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["analyze"])
+
+# Limites de entrada (o corpo de uma função serverless na Vercel é limitado a ~4,5MB)
+MAX_FILE_SIZE = 4 * 1024 * 1024  # 4MB
+MAX_TEXT_CHARS = get_int_env("MAX_TEXT_CHARS", 50000)
+MAX_PDF_PAGES = get_int_env("MAX_PDF_PAGES", 20)
 
 
 # Função para extrair texto de arquivo TXT
@@ -65,6 +72,12 @@ def extract_text_from_pdf(file_content: bytes) -> str:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
         text = ""
 
+        if len(pdf_reader.pages) > MAX_PDF_PAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"O PDF excede o limite de {MAX_PDF_PAGES} páginas."
+            )
+
         # Extrai texto de todas as páginas
         for page_num in range(len(pdf_reader.pages)):
             page = pdf_reader.pages[page_num]
@@ -83,6 +96,8 @@ def extract_text_from_pdf(file_content: bytes) -> str:
             status_code=500,
             detail="Biblioteca PyPDF2 não instalada. Execute: pip install PyPDF2"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=400,
@@ -135,6 +150,12 @@ async def analyze_text_gemini(text: str) -> AnalyzisResponse:
     """
     Analisa o texto usando Gemini e retorna classificação e resposta
     """
+
+    if len(text) > MAX_TEXT_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"O texto excede o limite de {MAX_TEXT_CHARS} caracteres."
+        )
 
     sanitized_text = sanitize_pii(text)
     processed_text = pre_process_text(sanitized_text)
@@ -205,16 +226,15 @@ Responda SOMENTE com JSON válido no seguinte formato:
             needs_review=bool(result.get("needs_review")) or normalized_category is None,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Erro ao analisar texto com Gemini: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao analisar o texto com Gemini:\n {e}"
-        )
+        raise map_llm_error(e)
 
 
 # Endpoint de análise de documentos
-@router.post("/analyze/file", response_model=AnalyzisResponse)
+@router.post("/analyze/file", dependencies=[Depends(rate_limit)], response_model=AnalyzisResponse)
 async def analyze_documents(file: UploadFile = File(...)):
     """
     Endpoint de analise de arquivos formato PDF e txt
@@ -244,14 +264,13 @@ async def analyze_documents(file: UploadFile = File(...)):
             detail="Formato do arquivo não suportado."
         )
 
-    # Valida o tamanho do arquivo (5mb)
-    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+    # Valida o tamanho do arquivo (4mb)
     file_content = await file.read()
 
     if len(file_content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
-            detail="Tamanho do arquivo excede o tamanho máximo suportado (5mb)."
+            detail="Tamanho do arquivo excede o tamanho máximo suportado (4mb)."
         )
 
     # Extrai o arquivo conforme o formato
@@ -276,7 +295,7 @@ async def analyze_documents(file: UploadFile = File(...)):
 
 
 # Endpoint de análise de texto direto
-@router.post("/analyze/text", response_model=AnalyzisResponse)
+@router.post("/analyze/text", dependencies=[Depends(rate_limit)], response_model=AnalyzisResponse)
 async def analyze_text(text: str = Form(...)):
     """
     Analisa texto enviados diretamente 
@@ -298,7 +317,7 @@ async def analyze_text(text: str = Form(...)):
 
 
 # Endpoint original
-@router.post("/analyze", response_model=AnalyzisResponse)
+@router.post("/analyze", dependencies=[Depends(rate_limit)], response_model=AnalyzisResponse)
 async def analyze(
     file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
@@ -319,16 +338,19 @@ async def analyze(
         )
 
 
-# Caminho do arquivo de feedback
-FEEDBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "feedback.json")
+# Caminho do arquivo de feedback (na Vercel só /tmp é gravável e não persiste entre invocações)
+if os.getenv("VERCEL"):
+    FEEDBACK_FILE = os.path.join(tempfile.gettempdir(), "feedback.json")
+else:
+    FEEDBACK_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "feedback.json")
 
 
 # Endpoint para receber feedback de correção
 @router.post("/feedback", response_model=FeedbackResponse)
 async def submit_feedback(
-    original_category: str = Form(...),
-    corrected_category: str = Form(...),
-    text_preview: str = Form(...)
+    original_category: str = Form(..., max_length=20),
+    corrected_category: str = Form(..., max_length=20),
+    text_preview: str = Form(..., max_length=2000)
 ):
     """
     Recebe feedback do usuário para corrigir a classificação.
@@ -351,6 +373,7 @@ async def submit_feedback(
             "text_preview": text_preview[:100]  # Limita a 100 caracteres
         }
         feedbacks.append(feedback_entry)
+        logger.info(f"Feedback registrado: {json.dumps(feedback_entry, ensure_ascii=False)}")
 
         # Salva no arquivo
         with open(FEEDBACK_FILE, 'w', encoding='utf-8') as f:

@@ -41,6 +41,17 @@ STOPWORDS = {
 }
 
 
+# Lê uma variável de ambiente inteira, com valor padrão
+def get_int_env(name: str, default: int) -> int:
+    """
+    Lê uma variável de ambiente numérica. Usa o padrão se ausente ou inválida.
+    """
+    try:
+        return int(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 # Define uma instância da llm
 def get_llm():
     """
@@ -50,20 +61,56 @@ def get_llm():
     """
 
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    MAX_TOKENS = os.getenv("MAX_TOKENS")
+    MAX_TOKENS = get_int_env("MAX_TOKENS", 1024)
     if not GOOGLE_API_KEY:
         raise HTTPException(
-            status_code=500,
-            detail="GOOGLE_API_KEY não configurada."
+            status_code=503,
+            detail="O serviço de análise ainda não está configurado (chave do Gemini ausente). Tente novamente mais tarde."
         )
 
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         temperature=0.2,
-        # max_output_tokens=MAX_TOKENS,
+        max_output_tokens=MAX_TOKENS,
+        thinking_budget=0,
+        max_retries=1,
+        timeout=45,
     )
 
     return llm
+
+
+# Converte erros do Gemini em respostas HTTP claras
+def map_llm_error(error: Exception) -> HTTPException:
+    """
+    Traduz uma exceção da chamada ao Gemini para um HTTPException com mensagem amigável.
+
+    Args:
+        error: exceção levantada pela chamada ao modelo
+
+    Return: HTTPException (429 cota, 503 chave inválida/indisponível, 502 demais casos)
+    """
+    message = str(error).lower()
+
+    if any(t in message for t in ("429", "resource_exhausted", "quota", "rate limit")):
+        return HTTPException(
+            status_code=429,
+            detail="A cota gratuita do Gemini foi atingida. Aguarde alguns minutos e tente novamente."
+        )
+    if any(t in message for t in ("api key", "api_key", "permission_denied", "403", "401")):
+        return HTTPException(
+            status_code=503,
+            detail="A chave do Gemini configurada no servidor é inválida ou não tem permissão. Avise o responsável pela demo."
+        )
+    if any(t in message for t in ("503", "unavailable", "overloaded", "timeout", "timed out", "deadline")):
+        return HTTPException(
+            status_code=503,
+            detail="O Gemini está indisponível ou sobrecarregado no momento. Tente novamente em instantes."
+        )
+    return HTTPException(
+        status_code=502,
+        detail="Não foi possível analisar o texto agora. Tente novamente em instantes."
+    )
 
 
 # Sanitiza PII (dados pessoais) antes de enviar ao modelo
